@@ -1,0 +1,32 @@
+BlueCrypt V2 Overview
+---------------------
+Core Features: Dynamic pipeline architecture, dual-mode S-Box (0-SRAM Flash PROGMEM default or dynamic SRAM override), constant-time bitwise operations, bidirectional avalanche diffusion, and 2-byte rolling HMAC payload integrity verification.
+
+Pre-Instantiated Global Object: Including <BlueCrypt.h> automatically instantiates a global instance named BlueCrypt using Option A (`extern BlueCryptClass BlueCrypt;`).
+
+Command Reference
+-----------------
+BlueCrypt.begin(seedKey)
+- Initializes the engine pipeline using a character or byte seed (e.g., 'A' or 0xA5). Default is 'A'.
+
+BlueCrypt.module(slotList)
+- Sets the dynamic transformation sequence using an array of module keys.
+- Usage: 
+  const uint8_t modules[] = {1, 3, 2, 4};
+  BlueCrypt.module(modules);
+
+BlueCrypt.table(customTable) (Optional)
+- Overrides the Flash PROGMEM S-Box with a custom 256-byte substitution table loaded into dynamic SRAM.
+
+BlueCrypt.resetTable()
+- Resets the S-Box lookup back to the zero-SRAM Flash PROGMEM default table.
+
+BlueCrypt.encrypt(message)
+- Encrypts input using bidirectional diffusion passes and appends a 2-byte rolling HMAC tag.
+- String Overload: String cipher = BlueCrypt.encrypt(myString);
+- Buffer Overload: size_t len = BlueCrypt.encrypt(inBuf, inLen, outBuf);
+
+BlueCrypt.decrypt(cipherText)
+- Verifies the 2-byte HMAC tag and decrypts back to plain text.
+- String Overload: String plain = BlueCrypt.decrypt(cipher); (Returns "" if HMAC fails)
+- Buffer Overload: BlueCryptStatus status = BlueCrypt.decrypt(inBuf, inLen, outBuf, &outLen); (Returns status enum)

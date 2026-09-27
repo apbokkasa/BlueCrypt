@@ -1,0 +1,5 @@
+BlueCryptClass	KEYWORD1
+BlueCrypt	KEYWORD1
+begin	KEYWORD2
+encrypt	KEYWORD2
+decrypt	KEYWORD2

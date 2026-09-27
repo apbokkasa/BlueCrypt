@@ -1,0 +1,9 @@
+base64 -w 0 input.png > shared.txt
+base64 -d shared.txt > output.png
+
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("input.png")) | Out-File -NoNewline shared.txt
+[IO.File]::WriteAllBytes("output.png", [Convert]::FromBase64String((Get-Content shared.txt -Raw)))
+
+
+
+WARNING: It must be under 1 KiloBytes for encryption to work on Uno R3
