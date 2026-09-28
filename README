@@ -4,6 +4,38 @@ Core Features: Dynamic pipeline architecture, dual-mode S-Box (0-SRAM Flash PROG
 
 Pre-Instantiated Global Object: Including <BlueCrypt.h> automatically instantiates a global instance named BlueCrypt using Option A (`extern BlueCryptClass BlueCrypt;`).
 
+Modules
+-----------------
+
+Module 1: Dynamic Non-Linear S-Box Substitution (0x01)
+
+Primary Function: Confusion (Non-linear byte mapping).
+How It Works: This module performs substitution by swapping every byte of the data stream using a non-linear substitution matrix (S-Box). By default, it reads a 256-byte static lookup table stored in zero-SRAM Flash (PROGMEM) to conserve dynamic memory on 8-bit AVR chips like the ATmega328P. If BlueCrypt.table(...) was invoked, it instead routes execution to a dynamic, user-supplied 256-byte substitution matrix loaded into SRAM.   
+Cryptographic Goal: It eliminates linear statistical relationships between the original plaintext and the resulting ciphertext, ensuring that simple frequency analysis cannot be used to break the code.
+
+
+Module 2: Variable XOR Permutation & Seed Mixing (0x02)
+
+Primary Function: Diffusion & Key-dependent perturbation.
+How It Works: This module XORs each byte of the payload with a rolling stream value derived from the initial seedKey (configured via BlueCrypt.begin(seedKey)) combined with its current array index position. As data passes through this slot, the internal state shifts, modifying the effective XOR byte for subsequent positions in the pipeline.   
+Cryptographic Goal: It ensures that identical bytes in different positions of the plaintext produce completely different ciphertext bytes, breaking repeating string patterns and structures.
+
+
+Module 3: Bitwise Circular Rotation & Shift (0x03)
+
+Primary Function: Bit-level diffusion (Avalanche effect).
+How It Works: Rather than operating at the full byte boundary, Module 3 manipulates bits directly. It performs a bitwise circular left-rotation (ROL) or right-rotation (ROR) on each byte, shifted by a dynamic bit count calculated from the current pipeline depth and the seed key state. Bits that shift out of position 7 wrap back around into position 0.   
+Cryptographic Goal: It disperses bit changes across byte boundaries. Changing a single bit in the input plaintext causes multiple bits across the byte array to flip rapidly during subsequent passes.
+
+
+Module 4: Two-Pass Bidirectional Avalanche Pass (0x04)
+
+Primary Function: Inter-byte propagation & Block-wide avalanche diffusion.   
+How It Works: This module executes a dual-pass diffusion operation across the entire memory buffer:   Forward Pass: Iterates from left to right (index 0 to N-1), combining each byte with the modified result of the preceding byte using modular addition and bitwise XOR operations.   Backward Pass: Reverses direction and iterates from right to left (index N-1 back to 0), blending trailing bytes back into leading bytes.   
+Cryptographic Goal: It ensures complete payload dependency—modifying even a single character at the very end of a message completely alters every single byte at the beginning of the ciphertext.
+
+
+
 Command Reference
 -----------------
 BlueCrypt.begin(seedKey)
