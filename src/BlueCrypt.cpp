@@ -1,4 +1,6 @@
 #include "BlueCrypt.h"
+#include <string.h>
+#include <stdlib.h>
 
 // Instantiate Option A global object instance
 BlueCryptClass BlueCrypt;
@@ -95,6 +97,14 @@ uint16_t BlueCryptClass::calculateHMAC(const uint8_t* data, size_t length) {
     return crc;
 }
 
+// Buffer helper overload
+size_t BlueCryptClass::encrypt(uint8_t* buffer, size_t len) {
+    uint8_t temp[128];
+    size_t encLen = encrypt(buffer, len, temp);
+    memcpy(buffer, temp, encLen);
+    return encLen;
+}
+
 // Low-level buffer encryption
 size_t BlueCryptClass::encrypt(const uint8_t* input, size_t inputLen, uint8_t* output) {
     memcpy(output, input, inputLen);
@@ -173,52 +183,95 @@ BlueCryptStatus BlueCryptClass::decrypt(const uint8_t* input, size_t inputLen, u
     return BC_SUCCESS;
 }
 
-// Simplified String Overload: Encrypt
+// =========================================================================
+// V2.0.1 UPDATE: Hex-Formatted String Overloads
+// =========================================================================
+
+// Simplified String Overload: Encrypt (Outputs Space-Separated Hex)
 String BlueCryptClass::encrypt(const String& msg) {
     size_t inputLen = msg.length();
-    uint8_t* tempOut = new uint8_t[inputLen + BC_HMAC_SIZE];
+    if (inputLen == 0) return "";
 
+    uint8_t* tempOut = new uint8_t[inputLen + BC_HMAC_SIZE];
     size_t outLen = encrypt((const uint8_t*)msg.c_str(), inputLen, tempOut);
 
-    String result = "";
-    result.reserve(outLen);
+    // Convert raw encrypted bytes to space-separated Hex
+    char* hexBuf = new char[outLen * 3 + 1];
+    size_t pos = 0;
+    const char hexDigits[] = "0123456789ABCDEF";
+
     for (size_t i = 0; i < outLen; i++) {
-        result += (char)tempOut[i];
+        hexBuf[pos++] = hexDigits[tempOut[i] >> 4];
+        hexBuf[pos++] = hexDigits[tempOut[i] & 0x0F];
+        hexBuf[pos++] = ' ';
     }
 
+    // Replace the trailing space with a null terminator
+    if (pos > 0) hexBuf[pos - 1] = '\0';
+    else hexBuf[0] = '\0';
+
+    String hexOutput = String(hexBuf);
+    
+    // Clean up dynamic allocations safely
+    delete[] hexBuf;
     delete[] tempOut;
-    return result;
+
+    return hexOutput;
 }
 
-// Simplified String Overload: Decrypt
+// Simplified String Overload: Decrypt (Accepts Space-Separated Hex)
 String BlueCryptClass::decrypt(const String& cipherText) {
-    size_t inputLen = cipherText.length();
-    if (inputLen <= BC_HMAC_SIZE) return "";
+    // Copy the const string so we can trim and tokenize it
+    String inputCopy = cipherText;
+    inputCopy.trim();
+    if (inputCopy.length() == 0) return "";
 
-    uint8_t* tempOut = new uint8_t[inputLen];
-    size_t decLen = 0;
+    // Estimate max bytes (2 chars + 1 space per byte)
+    size_t maxBytes = (inputCopy.length() / 2) + 1;
+    uint8_t* rawBuffer = new uint8_t[maxBytes];
+    size_t rawLen = 0;
 
-    BlueCryptStatus status = decrypt((const uint8_t*)cipherText.c_str(), inputLen, tempOut, &decLen);
+    char* buf = new char[inputCopy.length() + 1];
+    inputCopy.toCharArray(buf, inputCopy.length() + 1);
 
-    if (status != BC_SUCCESS) {
-        delete[] tempOut;
+    char* token = strtok(buf, " ");
+    while (token != NULL) {
+        rawBuffer[rawLen++] = (uint8_t)strtol(token, NULL, 16);
+        token = strtok(NULL, " ");
+    }
+
+    // Safety check against buffer underruns
+    if (rawLen <= BC_HMAC_SIZE) {
+        delete[] rawBuffer;
+        delete[] buf;
         return "";
     }
 
-    String result = "";
-    result.reserve(decLen);
-    for (size_t i = 0; i < decLen; i++) {
-        result += (char)tempOut[i];
+    uint8_t* tempOut = new uint8_t[rawLen];
+    size_t decLen = 0;
+
+    BlueCryptStatus status = decrypt(rawBuffer, rawLen, tempOut, &decLen);
+
+    // Halt decryption and return empty if HMAC integrity check fails
+    if (status != BC_SUCCESS) {
+        delete[] tempOut;
+        delete[] rawBuffer;
+        delete[] buf;
+        return "";
     }
 
-    delete[] tempOut;
-    return result;
-}
+    // Convert decrypted raw bytes back into a standard text String
+    char* outBuf = new char[decLen + 1];
+    memcpy(outBuf, tempOut, decLen);
+    outBuf[decLen] = '\0';
 
-// Buffer helper overload
-size_t BlueCryptClass::encrypt(uint8_t* buffer, size_t len) {
-    uint8_t temp[128];
-    size_t encLen = encrypt(buffer, len, temp);
-    memcpy(buffer, temp, encLen);
-    return encLen;
+    String decryptedPlaintext = String(outBuf);
+
+    // Clean up all dynamically allocated memory
+    delete[] outBuf;
+    delete[] tempOut;
+    delete[] rawBuffer;
+    delete[] buf;
+
+    return decryptedPlaintext;
 }
